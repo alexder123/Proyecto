@@ -1,0 +1,197 @@
+---
+title: "Final"
+author: "Grupo1"
+date: "4/3/2020"
+output: html_document
+---
+```{r}
+#LIBRERIAS QUE HEMOS UTILIZADO 
+
+#Librearias a utilizar
+library(shiny)
+library(dplyr)
+library(sqldf)
+library(datasets)
+library(shinythemes)
+#Lee archivos excel
+library(readxl)
+#install.packages ('rsconnect')
+library(rsconnect)
+#Librearias a utilizar
+library(tseries)
+#install.packages("forecast")
+library(forecast)
+#Lee archivos excel
+library(readxl)
+library("RMySQL")
+library("DBI")
+library(readr)
+library(purrr)
+library("dygraphs")
+library("data.table")
+library(moments)
+library(stats)
+
+```
+
+
+```{r}
+
+#Recoleccion 
+
+path <-"C:/Users/Cielo/Documents/Verano/Proyecto final/APORTACIONES DE ASEGURADORAS.xls"
+
+list <- path %>%excel_sheets() %>%set_names() %>%map(read_excel,path = path)
+
+```
+
+```{r}
+########################MODELADO###############
+
+conexion<-dbConnect(MySQL(),user="root",password="mysql",dbname="proyecto")
+```
+
+
+```{r}
+#############TRANSFORMACION Y CONSULTAS########
+
+```
+
+
+```{r}
+################PREPARACION DE LOS DATOS########
+
+h1<-list$Hoja1[1:5,c(1,6)]
+h2<-list$Hoja2[2:13,c("MESES","RIMAC")]
+h3<-list$Hoja3[2:13,c("MESES","RIMAC")]
+h4<-list$Hoja4[2:12,c("MESES","RIMAC")]
+h5<-list$Hoja5[2:13,c("MESES","RIMAC")]
+h6<-list$Hoja6[2:13,c("MESES","RIMAC")]
+h7<-list$Hoja7[2:13,c("MESES","RIMAC")]
+h8<-list$Hoja8[2:13,c("MESES","RIMAC")]
+h9<-list$Hoja9[2:13,c("MESES","RIMAC")]
+h10<-list$Hoja10[2:13,c("MESES","RIMAC")]
+h11<-list$Hoja11[2:13,c("MESES","RIMAC")]
+h12<-list$Hoja12[2:13,c("MESES","RIMAC")]
+h13<-list$Hoja13[2:13,c("MESES","RIMAC")]
+h14<-list$Hoja14[2:13,c("MESES","RIMAC")]
+                 
+datosex<-rbind(h1,h2,h3,h4,h5,h6,h7,h8,h9,h10,h11,h12,h13,h14)
+
+datosex$RIMAC<-as.numeric(datosex$RIMAC)
+datosex$MESES<-as.Date(datosex$MESES,"%d/%m/%Y")
+
+datosex
+
+#Para la verificacion de datos nulos
+nulos <- function(ds)
+{
+  return(sum(as.numeric(is.na(ds))))
+}
+nulos(datosex)
+#Validando si tiene valores anÃ³malos 
+anomalos <- function(ds)
+{
+  for (i in 1:NCOL(ds)) 
+  {
+    print(sprintf("colummna %d es %s",i,is.numeric(ds[,i])))
+  }  
+}
+anomalos(datosex)
+
+#Poniendo el valor promedio a todos donde haya cero
+mean(datosex$RIMAC)
+
+imputando_cero<-function(df,pro)
+{
+  for(i in 1:dim(df)[1])
+  {
+    if(as.numeric(df[i,2])==0)
+    {
+      df[i,2]<-pro
+    }
+    
+  }
+  return(df)
+}
+datosex<-imputando_cero(datosex,mean(datosex$RIMAC))
+
+
+```
+
+```{r}
+############EXPLORACION VISUAL DE LOS DATOS##########
+
+grafico2<-dygraph(data.table(datosex),xlab="Fechas de cierre de mes",ylab = "Monto de seguros RIMAC",
+                  main = "Cantidad de pagos realizados a la aseguradora RIMAC")%>%dyOptions(colors = "blue")%>%dygraphs::dyRangeSelector()
+grafico2
+
+
+plot(datosex$RIMAC,type = "l",xlab = "Fecha",ylab = "RIMAC")
+
+
+```
+
+
+```{r}
+
+#######Modelo Series de tiempo ##################
+mean(datosex$RIMAC)
+
+sd(datosex$RIMAC)
+
+kurtosis(datosex$RIMAC)
+
+#EL valor 0.01 es menor que 0.05 por lo tanto se podria decir que la serie es estacionaria
+adf.test(datosex$RIMAC)
+
+#Con el acf hace una autocorrelacion simple
+
+acf(datosex$RIMAC)
+
+#para hallar autocorrelacion parcial
+pacf(datosex$RIMAC)
+
+
+#Sea la diferenciacion y se aplica logaritmo para su estabilizacion
+
+dRIMAC<-diff(datosex$RIMAC)
+
+#Grafico nro 2 siendo mas estacionaria 
+plot(dRIMAC,type = "l")
+adf.test(dRIMAC)
+
+
+auto.arima(datosex$RIMAC)
+
+arimadtf<-arima(datosex$RIMAC,order=c(5,0,3))
+
+plot(arimadtf)
+plot(arimadtf$residuals,type="l")
+
+
+#Si es mayor a 0.5 la serie es estacionaria
+Box.test(arimadtf$residuals,type="Ljung-Box")
+
+
+
+plot(predicciones<-forecast(arimadtf,10,level = 99),type = "l",main = "Pronostico con auto-arima")
+
+predicciones
+
+```
+
+
+```{r}
+
+#################EXPORTACION Y COMUNICACION##################
+
+
+pdf(file="C:/Users/Cielo/Desktop/Grafico1.pdf")
+plot(predicciones<-forecast(arimadtf,30,level = 99),type = "l",main = "Pronostico con auto-arima")
+dev.off()
+
+```
+
+
+
